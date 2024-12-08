@@ -1,0 +1,192 @@
+pipeline {
+    agent any
+
+    tools {
+        nodejs 'NodeJS 18'
+        
+    }
+
+    environment {
+        SERVER_GITHUB_REPO = 'https://github.com/Dobilevi/mobil-webshop-server.git'
+        CLIENT_GITHUB_REPO = 'https://github.com/Dobilevi/mobil-webshop-client.git'
+        BRANCH = 'main'
+        SERVER_DEPLOY_CONTAINER = 'prf-project-nodejs'
+        CLIENT_DEPLOY_CONTAINER = 'prf-project-angular'
+        MONGODB_HOST = '172.100.0.35'
+        MONGODB_PORT = '27017'
+        MONGODB_DB = 'my_db'
+    }
+
+    stages {
+        stage('Checkout server') {
+            steps {
+                git branch: env.BRANCH, url: env.SERVER_GITHUB_REPO
+            }
+        }
+
+        stage('Install Server Dependencies') {
+            steps {
+                dir("server") {
+                    sh 'npm install'    
+                }
+            }
+        }
+
+        stage('Test Server') {
+            steps {
+                dir("server") {
+                    sh 'npm run test'
+                }
+            }
+        }
+
+        stage('Build Server') {
+            steps {
+                dir("server") {
+                    sh 'npm run build'
+                }
+            }
+        }
+
+        stage('Checkout Client') {
+            steps {
+                git branch: env.BRANCH, url: env.CLIENT_GITHUB_REPO
+            }
+        }
+
+        stage('Install Client Dependencies') {
+            steps {
+                dir("client") {
+                    sh 'npm install'    
+                }
+            }
+        }
+
+//        stage('Test Client') {
+//            steps {
+//                dir("client") {
+//                    sh 'npm run test'
+//                }
+//            }
+//        }
+
+        stage('Build Client') {
+            steps {
+                dir("client") {
+                    sh 'npm run build'
+                }
+            }
+        }
+
+        stage('Deploy the test server') {
+            steps {
+                echo 'Deploying the server...'
+                sshagent(credentials: ['jenkins-deploy-key']) {
+                    sh """
+                        ssh -o StrictHostKeyChecking=no deploy@${env.SERVER_DEPLOY_CONTAINER}-test -p 22 '
+                            rm -rf /app/mobil-webshop-server
+
+                            cd /app
+                            git clone ${env.SERVER_GITHUB_REPO}
+                            cd /app/mobil-webshop-server
+                            git checkout ${BRANCH}
+
+                            npm install
+                            npm run build
+                            pm2 -f start /app/ecosystem.config.js
+                        '
+                    """
+                }
+            }
+        }
+
+        stage ('Deploy to test client') {
+            steps {
+                echo 'Deploying the client...'
+                sshagent(credentials: ['jenkins-deploy-key']) {
+                    sh """
+                        ssh -o StrictHostKeyChecking=no deploy@${env.CLIENT_DEPLOY_CONTAINER}-test -p 22 '
+                            rm -rf /app/mobil-webshop-client
+                            cd /app
+
+                            git clone ${env.CLIENT_GITHUB_REPO}
+                            cd /app/mobil-webshop-client
+                            git checkout ${BRANCH}
+
+                            yes | cp -rf /app/environment.ts /app/mobil-webshop-client/src/environments/environment.ts
+                            yes | cp -rf /app/environment.ts /app/mobil-webshop-client/src/environments/environment.development.ts
+
+                            npm install
+                            pm2 -f start /app/ecosystem.config.js
+                        '
+                    """
+                }
+            }
+        }
+        
+        stage('Deploy to the production environment') {
+            when {
+                expression {
+                    env.BRANCH == 'main'
+                }
+            }
+
+            steps {
+                echo 'Deploying the server...'
+                sshagent(credentials: ['jenkins-deploy-key']) {
+                    sh """
+                        ssh -o StrictHostKeyChecking=no deploy@${env.SERVER_DEPLOY_CONTAINER} -p 22 '
+                            rm -rf /app/mobil-webshop-server
+
+                            cd /app
+                            git clone ${env.SERVER_GITHUB_REPO}
+                            cd /app/mobil-webshop-server
+                            git checkout ${BRANCH}
+
+                            npm install
+                            npm run build
+                            pm2 -f start /app/ecosystem.config.js
+                        '
+                    """
+                }
+
+                echo 'Deploying the client...'
+                sshagent(credentials: ['jenkins-deploy-key']) {
+                    sh """
+                        ssh -o StrictHostKeyChecking=no deploy@${env.CLIENT_DEPLOY_CONTAINER} -p 22 '
+                            rm -rf /app/mobil-webshop-client
+                            cd /app
+
+                            git clone ${env.CLIENT_GITHUB_REPO}
+                            cd /app/mobil-webshop-client
+                            git checkout ${BRANCH}
+
+                            yes | cp -rf /app/environment.ts /app/mobil-webshop-client/src/environments/environment.ts
+                            yes | cp -rf /app/environment.ts /app/mobil-webshop-client/src/environments/environment.development.ts
+
+                            npm install
+                            pm2 -f start /app/ecosystem.config.js
+                        '
+                    """
+                }
+            }
+        }
+
+        stage('Cleanup') {
+            steps {
+                deleteDir()
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline ran successfully!'
+        }
+
+        failure {
+            echo 'Pipeline failed!'
+        }
+    }
+
+}

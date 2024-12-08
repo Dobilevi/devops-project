@@ -1,0 +1,6 @@
+FROM jenkins/jenkins:lts
+
+ADD modules/jenkins/var/jenkins_home /var/jenkins_home
+
+EXPOSE 8080
+

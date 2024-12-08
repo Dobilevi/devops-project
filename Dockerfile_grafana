@@ -1,0 +1,7 @@
+FROM grafana/grafana:latest
+
+COPY modules/grafana/provisioning/datasources/prometheus.yml /etc/grafana/provisioning/datasources/prometheus.yml
+COPY modules/grafana//grafana/grafana.db /var/lib/grafana/grafana.db
+
+EXPOSE 3000
+

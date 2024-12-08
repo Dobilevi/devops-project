@@ -1,0 +1,13 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<fingerprint>
+  <timestamp>2024-12-08 15:59:36.133 UTC</timestamp>
+  <md5sum>f3256f25c26545467fedb77557433d08</md5sum>
+  <fileName>Credential id=jenkins-deploy-key name=deploy (jenkins-deploy-key)</fileName>
+  <usages>
+    <entry>
+      <string>CICD</string>
+      <ranges>1</ranges>
+    </entry>
+  </usages>
+  <facets/>
+</fingerprint>
